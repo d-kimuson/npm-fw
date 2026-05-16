@@ -27,9 +27,9 @@
     "access": "public"
   },
   "scripts": {
-    "typecheck": "tsgo -p . --noEmit",
     "dev": "node --watch src/main.ts",
     "cli": "node src/cli.ts",
+    "typecheck": "tsgo -p . --noEmit",
     "build": "tsdown",
     "lint": "run-p lint:*",
     "lint:oxlint": "oxlint --ignore-path .gitignore --no-error-on-unmatched-pattern",
@@ -38,11 +38,7 @@
     "fix:oxlint": "pnpm lint:oxlint --fix",
     "fix:oxfmt": "oxfmt --ignore-path .gitignore --no-error-on-unmatched-pattern",
     "test": "vitest run --passWithNoTests",
-    "release-check": "node --experimental-strip-types scripts/release.ts",
-    "prepack": "pnpm release-check && clean-pkg-json",
-    "pack:local": "scripts/pack/pack.sh",
-    "check:pack": "scripts/pack/check.sh",
-    "prepare": "lefthook install"
+    "prepack": "node scripts/release.ts && clean-pkg-json"
   },
   "devDependencies": {
     "@tsconfig/strictest": "2.0.8",
