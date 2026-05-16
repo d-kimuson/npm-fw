@@ -21,6 +21,7 @@
           f (
             import nixpkgs {
               inherit system;
+              config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "codeql" ];
             }
           )
         );
@@ -31,12 +32,14 @@
           packages = [
             pkgs.nodejs
             pkgs.pnpm
+            pkgs.codeql
           ];
 
           shellHook = ''
             echo "npm-fw dev shell"
-            echo "  node  $(node --version)"
-            echo "  pnpm  $(pnpm --version)"
+            echo "  node   $(node --version)"
+            echo "  pnpm   $(pnpm --version)"
+            echo "  codeql $(codeql version 2>/dev/null || echo 'ready')"
           '';
         };
       });

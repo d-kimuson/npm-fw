@@ -38,7 +38,8 @@
     "fix:oxlint": "pnpm lint:oxlint --fix",
     "fix:oxfmt": "oxfmt --ignore-path .gitignore --no-error-on-unmatched-pattern",
     "test": "vitest run --passWithNoTests",
-    "prepack": "pnpm build && clean-pkg-json",
+    "release-check": "node --experimental-strip-types scripts/release.ts",
+    "prepack": "pnpm release-check && clean-pkg-json",
     "pack:local": "scripts/pack/pack.sh",
     "check:pack": "scripts/pack/check.sh",
     "prepare": "lefthook install"
