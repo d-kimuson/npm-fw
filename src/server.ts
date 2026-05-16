@@ -12,7 +12,10 @@ export const startServer = (options?: ServerOptions) => {
 
   const handler = createHandler(proxyConfig);
 
-  const server = createServer(handler);
+  // Node.js createServer は async handler をサポートしているが oxlint に検知されないためラップ
+  const server = createServer((req, res) => {
+    void handler(req, res);
+  });
 
   server.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);

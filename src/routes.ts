@@ -53,12 +53,15 @@ const sendResponse = (res: ServerResponse, response: Response): void => {
     const pump = async (): Promise<void> => {
       try {
         while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
+          const result = await reader.read();
+          if (result.done) {
             res.end();
             return;
           }
-          res.write(value);
+          // oxlint-disable-next-line strict-boolean-expressions
+          if (result.value) {
+            res.write(result.value);
+          }
         }
       } catch {
         res.end();
