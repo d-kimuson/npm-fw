@@ -143,4 +143,6 @@ vite.config.ts.timestamp-*
 .vite/
 .direnv/
 
+# agents
+.pi/goals
 docs/tmp
