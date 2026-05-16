@@ -38,6 +38,7 @@
     "fix:oxlint": "pnpm lint:oxlint --fix",
     "fix:oxfmt": "oxfmt --ignore-path .gitignore --no-error-on-unmatched-pattern",
     "test": "vitest run --passWithNoTests",
+    "release": "node scripts/release.ts",
     "prepack": "pnpm build && clean-pkg-json"
   },
   "devDependencies": {

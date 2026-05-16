@@ -102,16 +102,16 @@ TAG="v0.0.0" # replace
 gh release view "$TAG" --json body --jq .body
 ```
 
-Rewrite the notes for npm-fw product-level clarity. The generated draft is based on commit logs, so categories and wording may be wrong from the npm-fw product perspective. Remove internal-only updates, move entries to the correct category, merge intermediate same-release fixes into their related feature, and rewrite commit-message phrasing into release-note prose.
+Rewrite the notes according to `docs/release-note-guideline.md`. The generated draft is based on commit logs, so categories and wording may be wrong from the npm-fw product perspective. Remove internal-only updates, move entries to the correct category, merge intermediate same-release fixes into their related feature, and rewrite commit-message phrasing into release-note prose.
 
 For a second-pass review before publishing, delegate a focused review to another agent:
 
 ```bash
 RELEASE_URL="https://github.com/d-kimuson/npm-fw/releases/tag/v0.0.0" # replace
-pi -p "Review the Release Note at $RELEASE_URL and identify concrete changes that should be made. Remove internal-only updates, merge intermediate same-release fixes, rewrite commit-message phrasing into release-note prose. Do not edit files or GitHub releases; only report findings."
+pi -p "Read docs/release-note-guideline.md, review the Release Note at $RELEASE_URL, and identify concrete changes that should be made. Do not edit files or GitHub releases; only report findings."
 ```
 
-Apply the review findings.
+Apply the review findings when they are consistent with the guideline.
 
 Publish the draft with the rewritten notes:
 
