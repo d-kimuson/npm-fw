@@ -1,4 +1,9 @@
-# npm-fw
+# 🚨 @kimuson/npm-fw
+
+[![CI](https://img.shields.io/github/actions/workflow/status/d-kimuson/npm-fw/ci.yml?branch=main&style=for-the-badge)](https://github.com/d-kimuson/npm-fw/actions/workflows/ci.yml?branch=main)
+[![GitHub release](https://img.shields.io/github/v/release/d-kimuson/npm-fw?include_prereleases&style=for-the-badge)](https://github.com/d-kimuson/npm-fw/releases)
+[![npm version](https://img.shields.io/npm/v/%40kimuson%2Fnpm-fw?color=yellow&style=for-the-badge)](https://www.npmjs.com/package/@kimuson/npm-fw)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://github.com/d-kimuson/npm-fw/blob/main/LICENSE)
 
 npm registry proxy firewall. Blocks vulnerable packages — including transitive dependencies — before they reach `node_modules`. Falls back to the newest safe version when `latest` is affected.
 
