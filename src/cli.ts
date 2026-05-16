@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import getPort from "get-port";
 import { runDaemon } from "./daemon.ts";
 import { readState, isAlive, writeState, removeState } from "./daemon-state.ts";
-import pkg from "../package.json";
+import pkg from "../package.json" with { type: "json" };
 
 const DAEMON_STARTUP_TIMEOUT_MS = 15_000;
 const DAEMON_BASE_PORT = 42424;
@@ -106,9 +106,13 @@ const npmConfig = (args: string[]): Promise<{ stdout: string; stderr: string; co
 
 // --- CLI ---
 
-const program = new Command();
-
-program.name("npm-fw").description("npm registry proxy firewall").version(pkg.version);
+const program = new Command()
+  .name(pkg.name)
+  .description(pkg.description)
+  .version(pkg.version)
+  // Allow unknown options so that passthrough commands like `pnpm add -D` pass through
+  // without Commander rejecting them. Known subcommands and --help work as normal.
+  .allowUnknownOption();
 
 // setup-standalone
 program
@@ -176,21 +180,6 @@ program
     }
   });
 
-// daemon-reload
-program
-  .command("daemon-reload")
-  .description("Restart the proxy daemon")
-  .action(async () => {
-    await stopDaemon();
-    try {
-      const port = await ensureDaemon();
-      console.log(`Daemon restarted on http://localhost:${port}`);
-    } catch (err) {
-      console.error("Failed to restart daemon:", err);
-      process.exit(1);
-    }
-  });
-
 // daemon-start
 program
   .command("daemon-start")
@@ -212,10 +201,38 @@ program
     }
   });
 
+// daemon-reload
+program
+  .command("daemon-reload")
+  .description("Restart the proxy daemon")
+  .action(async () => {
+    await stopDaemon();
+    try {
+      const port = await ensureDaemon();
+      console.log(`Daemon restarted on http://localhost:${port}`);
+    } catch (err) {
+      console.error("Failed to restart daemon:", err);
+      process.exit(1);
+    }
+  });
+
 // Default: proxy a command
 program.arguments("[command...]").action(async (args: string[]) => {
   await runCommand(args);
 });
+
+program.addHelpText(
+  "after",
+  `
+Examples:
+  $ npm-fw npm install axios
+  $ npm-fw pnpm add -D @types/node
+  $ npm-fw setup-standalone
+  $ npm-fw doctor
+  $ npm-fw daemon-stop
+  $ npm-fw daemon-reload
+`,
+);
 
 // Show help if no arguments
 if (process.argv.length <= 2) {
