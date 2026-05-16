@@ -1,59 +1,13 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 import getPort from "get-port";
 import { runDaemon } from "./daemon.ts";
+import { readState, isAlive, writeState, removeState } from "./daemon-state.ts";
 import pkg from "../package.json";
 
-// --- daemon state ---
-
-const STATE_DIR = join(homedir(), ".npm-fw");
-const STATE_FILE = join(STATE_DIR, "daemon.json");
 const DAEMON_STARTUP_TIMEOUT_MS = 15_000;
 const DAEMON_BASE_PORT = 42424;
-
-type DaemonState = { readonly pid: number; readonly port: number };
-
-const readState = async (): Promise<DaemonState | null> => {
-  try {
-    const raw = await readFile(STATE_FILE, "utf-8");
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed === "object" && parsed !== null && "pid" in parsed && "port" in parsed) {
-      const obj = parsed as Record<string, unknown>;
-      if (typeof obj["pid"] === "number" && typeof obj["port"] === "number") {
-        return { pid: obj["pid"], port: obj["port"] };
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-};
-
-const isAlive = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const writeState = async (state: DaemonState): Promise<void> => {
-  await mkdir(STATE_DIR, { recursive: true });
-  await writeFile(STATE_FILE, JSON.stringify(state));
-};
-
-const removeState = async (): Promise<void> => {
-  try {
-    await rm(STATE_FILE, { force: true });
-  } catch {
-    // ignore
-  }
-};
 
 const stopDaemon = async (): Promise<boolean> => {
   const state = await readState();

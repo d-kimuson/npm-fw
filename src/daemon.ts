@@ -1,16 +1,6 @@
 import { startServer } from "./server.ts";
 import type { ProxyConfig } from "./proxy/types.ts";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
-
-const STATE_DIR = join(homedir(), ".npm-fw");
-const STATE_FILE = join(STATE_DIR, "daemon.json");
-
-type DaemonState = {
-  readonly pid: number;
-  readonly port: number;
-};
+import { writeStateSync } from "./daemon-state.ts";
 
 const readPort = (): number => {
   const envPort = process.env["NPM_FW_PORT"];
@@ -19,12 +9,6 @@ const readPort = (): number => {
     if (!isNaN(parsed)) return parsed;
   }
   return 42424;
-};
-
-const writeState = (port: number): void => {
-  mkdirSync(STATE_DIR, { recursive: true });
-  const state: DaemonState = { pid: process.pid, port };
-  writeFileSync(STATE_FILE, JSON.stringify(state));
 };
 
 export const runDaemon = (): void => {
@@ -37,7 +21,7 @@ export const runDaemon = (): void => {
     advisories: { enabled: true, minSeverity: "high" },
   };
 
-  writeState(port);
+  writeStateSync({ pid: process.pid, port });
 
   startServer({ port, proxyConfig });
 

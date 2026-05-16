@@ -1,6 +1,5 @@
-import { serve } from "@hono/node-server";
-import { honoApp } from "./app.ts";
-import { routes } from "./routes.ts";
+import { createServer } from "node:http";
+import { createHandler } from "./routes.ts";
 import type { ProxyConfig } from "./proxy/types.ts";
 
 type ServerOptions = {
@@ -11,17 +10,13 @@ type ServerOptions = {
 export const startServer = (options?: ServerOptions) => {
   const { port = 42424, proxyConfig } = options ?? {};
 
-  routes(honoApp, proxyConfig);
+  const handler = createHandler(proxyConfig);
 
-  const server = serve(
-    {
-      fetch: honoApp.fetch,
-      port,
-    },
-    (info) => {
-      console.log(`Server is running on http://localhost:${info.port}`);
-    },
-  );
+  const server = createServer(handler);
+
+  server.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+  });
 
   let isRunning = true;
   const cleanUp = () => {

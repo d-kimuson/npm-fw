@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { Hono } from "hono";
 import { createProxyHandler } from "./proxy-handler.ts";
 import type { ProxyConfig } from "./types.ts";
+import type { RequestContext } from "../http-context.ts";
 
 const baseConfig: ProxyConfig = {
   upstream: { registry: "https://registry.npmjs.org" },
@@ -9,13 +9,12 @@ const baseConfig: ProxyConfig = {
   metadataFilter: {},
 };
 
-/** テスト用の Hono アプリを作成し、proxy handler を登録して fetch できるようにする */
-const createTestApp = (config: ProxyConfig, mockFetch: typeof globalThis.fetch) => {
-  const app = new Hono();
-  const handler = createProxyHandler({ config, fetch: mockFetch });
-  app.all("*", handler);
-  return app;
-};
+/** RequestContext を作成するヘルパー */
+const req = (url: string, method = "GET"): RequestContext => ({
+  url,
+  method,
+  headers: new Headers(),
+});
 
 describe("createProxyHandler", () => {
   it("forwards request to upstream and returns response", async () => {
@@ -26,8 +25,8 @@ describe("createProxyHandler", () => {
       }),
     );
 
-    const app = createTestApp(baseConfig, mockFetch);
-    const res = await app.request("/axios");
+    const handler = createProxyHandler({ config: baseConfig, fetch: mockFetch });
+    const res = await handler(req("/axios"));
 
     expect(res.status).toBe(200);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -45,8 +44,8 @@ describe("createProxyHandler", () => {
       }),
     );
 
-    const app = createTestApp(baseConfig, mockFetch);
-    const res = await app.request("/axios/-/axios-1.0.0.tgz");
+    const handler = createProxyHandler({ config: baseConfig, fetch: mockFetch });
+    const res = await handler(req("/axios/-/axios-1.0.0.tgz"));
 
     expect(res.status).toBe(200);
     expect(await res.text()).toBe(body);
@@ -59,8 +58,8 @@ describe("createProxyHandler", () => {
       blocklist: [{ type: "package", name: "malware" }],
     };
 
-    const app = createTestApp(config, mockFetch);
-    const res = await app.request("/malware");
+    const handler = createProxyHandler({ config, fetch: mockFetch });
+    const res = await handler(req("/malware"));
 
     expect(res.status).toBe(403);
     expect(mockFetch).not.toHaveBeenCalled();
@@ -73,8 +72,8 @@ describe("createProxyHandler", () => {
       blocklist: [{ type: "package", name: "malware" }],
     };
 
-    const app = createTestApp(config, mockFetch);
-    const res = await app.request("/malware/-/malware-1.0.0.tgz");
+    const handler = createProxyHandler({ config, fetch: mockFetch });
+    const res = await handler(req("/malware/-/malware-1.0.0.tgz"));
 
     expect(res.status).toBe(403);
     expect(mockFetch).not.toHaveBeenCalled();
@@ -87,8 +86,8 @@ describe("createProxyHandler", () => {
       blocklist: [{ type: "version", name: "axios", version: "1.8.0" }],
     };
 
-    const app = createTestApp(config, mockFetch);
-    const res = await app.request("/axios/-/axios-1.8.0.tgz");
+    const handler = createProxyHandler({ config, fetch: mockFetch });
+    const res = await handler(req("/axios/-/axios-1.8.0.tgz"));
 
     expect(res.status).toBe(403);
     expect(mockFetch).not.toHaveBeenCalled();
@@ -106,8 +105,8 @@ describe("createProxyHandler", () => {
       blocklist: [{ type: "version", name: "axios", version: "1.8.0" }],
     };
 
-    const app = createTestApp(config, mockFetch);
-    const res = await app.request("/axios/-/axios-1.7.0.tgz");
+    const handler = createProxyHandler({ config, fetch: mockFetch });
+    const res = await handler(req("/axios/-/axios-1.7.0.tgz"));
 
     expect(res.status).toBe(200);
     expect(mockFetch).toHaveBeenCalled();
@@ -118,8 +117,8 @@ describe("createProxyHandler", () => {
       .fn<typeof globalThis.fetch>()
       .mockRejectedValue(new Error("Connection refused"));
 
-    const app = createTestApp(baseConfig, mockFetch);
-    const res = await app.request("/axios");
+    const handler = createProxyHandler({ config: baseConfig, fetch: mockFetch });
+    const res = await handler(req("/axios"));
 
     expect(res.status).toBe(502);
     expect(await res.text()).toBe("Upstream registry unavailable");
@@ -133,8 +132,8 @@ describe("createProxyHandler", () => {
       }),
     );
 
-    const app = createTestApp(baseConfig, mockFetch);
-    await app.request("/axios?version=1.0.0");
+    const handler = createProxyHandler({ config: baseConfig, fetch: mockFetch });
+    await handler(req("/axios?version=1.0.0"));
 
     expect(mockFetch).toHaveBeenCalledWith(
       "https://registry.npmjs.org/axios?version=1.0.0",
@@ -166,8 +165,8 @@ describe("createProxyHandler", () => {
         ...baseConfig,
         advisories: { enabled: true, minSeverity: "high" },
       };
-      const app = createTestApp(config, mockFetch);
-      const res = await app.request("/axios/-/axios-1.6.0.tgz");
+      const handler = createProxyHandler({ config, fetch: mockFetch });
+      const res = await handler(req("/axios/-/axios-1.6.0.tgz"));
 
       expect(res.status).toBe(403);
       expect(await res.text()).toContain("vulnerable");
@@ -193,8 +192,8 @@ describe("createProxyHandler", () => {
         ...baseConfig,
         advisories: { enabled: true, minSeverity: "high" },
       };
-      const app = createTestApp(config, mockFetch);
-      const res = await app.request("/axios/-/axios-1.7.0.tgz");
+      const handler = createProxyHandler({ config, fetch: mockFetch });
+      const res = await handler(req("/axios/-/axios-1.7.0.tgz"));
 
       expect(res.status).toBe(200);
       expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -243,8 +242,8 @@ describe("createProxyHandler", () => {
         ...baseConfig,
         advisories: { enabled: true, minSeverity: "high" },
       };
-      const app = createTestApp(config, mockFetch);
-      const res = await app.request("/lodash");
+      const handler = createProxyHandler({ config, fetch: mockFetch });
+      const res = await handler(req("/lodash"));
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -300,8 +299,8 @@ describe("createProxyHandler", () => {
         ...baseConfig,
         advisories: { enabled: true, minSeverity: "high" },
       };
-      const app = createTestApp(config, mockFetch);
-      const res = await app.request("/lodash");
+      const handler = createProxyHandler({ config, fetch: mockFetch });
+      const res = await handler(req("/lodash"));
 
       expect(res.status).toBe(200);
       const body = await res.json();

@@ -1,4 +1,4 @@
-import type { Context } from "hono";
+import type { RequestContext } from "../http-context.ts";
 import type { NpmPackageMetadata, ProxyConfig } from "./types.ts";
 import { parsePath } from "./package-name.ts";
 import { applyMetadataFilter } from "./metadata-filter.ts";
@@ -23,8 +23,8 @@ export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
   const { config } = options;
   const doFetch: FetchFn = options.fetch ?? globalThis.fetch;
 
-  return async (c: Context): Promise<Response> => {
-    const url = new URL(c.req.url);
+  return async (req: RequestContext): Promise<Response> => {
+    const url = new URL(req.url, "http://localhost");
     // npm は scoped package の / を %2f にエンコードするのでデコードする
     const pathname = decodeURIComponent(url.pathname);
     const upstreamUrl = `${config.upstream.registry}${pathname}${url.search}`;
@@ -43,7 +43,7 @@ export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
       const minSeverity = config.advisories.minSeverity ?? "high";
       const blocked = advisories.some((a) => meetsMinSeverity(a.severity, minSeverity));
       if (blocked) {
-        return blockedResponse(`${parsed.name}@${parsed.version} (vulnerable)`, c);
+        return blockedResponse(`${parsed.name}@${parsed.version} (vulnerable)`);
       }
     }
 
@@ -51,7 +51,7 @@ export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
     if (parsed.type !== "other") {
       for (const rule of config.blocklist) {
         if (rule.type === "package" && rule.name === parsed.name) {
-          return blockedResponse(parsed.name, c);
+          return blockedResponse(parsed.name);
         }
         if (
           rule.type === "version" &&
@@ -59,18 +59,18 @@ export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
           parsed.type === "tarball" &&
           rule.version === parsed.version
         ) {
-          return blockedResponse(`${parsed.name}@${parsed.version}`, c);
+          return blockedResponse(`${parsed.name}@${parsed.version}`);
         }
       }
     }
 
     // 上流にリクエストを転送
-    const reqHeaders = forwardableHeaders(c.req.raw.headers);
+    const reqHeaders = forwardableHeaders(req.headers);
 
     let upstreamRes: Response;
     try {
       upstreamRes = await doFetch(upstreamUrl, {
-        method: c.req.method,
+        method: req.method,
         headers: reqHeaders,
         redirect: "follow",
       });
@@ -113,7 +113,7 @@ export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
             }
 
             const filtered = applyMetadataFilter(json, computedFilter);
-            return c.json(filtered);
+            return jsonResponse(filtered);
           }
         } catch {
           // JSON パースに失敗したらそのまま転送（元の upstreamRes で）
@@ -132,10 +132,16 @@ export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
 };
 
 /** ブロックされた場合のレスポンス */
-const blockedResponse = (target: string, _c: Context): Response =>
+const blockedResponse = (target: string): Response =>
   new Response(`Blocked: ${target}`, {
     status: 403,
     headers: { "content-type": "text/plain" },
+  });
+
+/** JSON レスポンスを生成 */
+const jsonResponse = (data: unknown): Response =>
+  new Response(JSON.stringify(data), {
+    headers: { "content-type": "application/json" },
   });
 
 /** 上流に転送するリクエストヘッダーを構築（host は除外） */
