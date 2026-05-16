@@ -18,7 +18,7 @@ const readPort = (): number => {
     const parsed = parseInt(envPort, 10);
     if (!isNaN(parsed)) return parsed;
   }
-  return 3000;
+  return 42424;
 };
 
 const writeState = (port: number): void => {

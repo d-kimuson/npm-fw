@@ -9,7 +9,7 @@ type ServerOptions = {
 };
 
 export const startServer = (options?: ServerOptions) => {
-  const { port = 3000, proxyConfig } = options ?? {};
+  const { port = 42424, proxyConfig } = options ?? {};
 
   routes(honoApp, proxyConfig);
 
