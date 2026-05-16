@@ -2,11 +2,18 @@
   "name": "npm-fw",
   "version": "0.0.0",
   "license": "MIT",
+  "bin": {
+    "npm-fw": "./dist/cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "scripts": {
     "typecheck": "tsgo -p . --noEmit",
-    "dev": "node src/main.ts",
+    "dev": "node --watch src/main.ts",
     "cli": "node src/cli.ts",
+    "build": "tsdown",
     "lint": "run-p lint:*",
     "lint:oxlint": "oxlint --ignore-path .gitignore --no-error-on-unmatched-pattern",
     "lint:oxfmt": "pnpm fix:oxfmt --check",
@@ -16,21 +23,23 @@
     "test": "vitest run --passWithNoTests",
     "prepare": "lefthook install"
   },
-  "dependencies": {
-    "@hono/node-server": "2.0.2",
-    "commander": "14.0.3",
-    "hono": "4.12.18"
-  },
   "devDependencies": {
+    "@hono/node-server": "2.0.2",
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "25.6.2",
+    "@types/semver": "7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260510.1",
+    "commander": "14.0.3",
     "gatecheck": "0.0.1-beta.5",
+    "get-port": "7.2.0",
+    "hono": "4.12.18",
     "lefthook": "2.1.6",
     "npm-run-all2": "8.0.4",
     "oxfmt": "0.48.0",
     "oxlint": "1.63.0",
     "oxlint-tsgolint": "0.22.1",
+    "semver": "7.8.0",
+    "tsdown": "0.22.0",
     "vitest": "4.1.5"
   },
   "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499"

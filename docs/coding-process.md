@@ -22,12 +22,12 @@ pnpm gatecheck check
 
 ## Notable Commands
 
-| Command          | Purpose                                     |
-| ---------------- | ------------------------------------------- |
-| `pnpm dev`       | Start dev server (node)                            |
-| `pnpm cli`       | Run CLI (node)                                     |
-| `pnpm typecheck` | TypeScript type checking (tsgo)                    |
-| `pnpm lint`      | Run all linters (oxlint + oxfmt)                   |
-| `pnpm fix`       | Auto-fix all lint issues                           |
-| `pnpm test`      | Run test suite (vitest)                            |
-| `pnpm prepare`   | Install lefthook git hooks                         |
+| Command          | Purpose                          |
+| ---------------- | -------------------------------- |
+| `pnpm dev`       | Start dev server (node)          |
+| `pnpm cli`       | Run CLI (node)                   |
+| `pnpm typecheck` | TypeScript type checking (tsgo)  |
+| `pnpm lint`      | Run all linters (oxlint + oxfmt) |
+| `pnpm fix`       | Auto-fix all lint issues         |
+| `pnpm test`      | Run test suite (vitest)          |
+| `pnpm prepare`   | Install lefthook git hooks       |

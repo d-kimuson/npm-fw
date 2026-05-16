@@ -1,15 +1,17 @@
 import { serve } from "@hono/node-server";
 import { honoApp } from "./app.ts";
 import { routes } from "./routes.ts";
+import type { ProxyConfig } from "./proxy/types.ts";
 
 type ServerOptions = {
   port?: number;
+  proxyConfig?: ProxyConfig;
 };
 
 export const startServer = (options?: ServerOptions) => {
-  const { port = 3000 } = options ?? {};
+  const { port = 3000, proxyConfig } = options ?? {};
 
-  routes(honoApp);
+  routes(honoApp, proxyConfig);
 
   const server = serve(
     {
