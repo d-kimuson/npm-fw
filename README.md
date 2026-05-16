@@ -116,9 +116,9 @@ Commands:
 
 npm-fw blocks packages with **known security advisories** (CVEs/GHSAs) registered in the [GitHub Advisory Database](https://github.com/advisories).
 
-Advisories typically appear in the npm API within hours of publication, but there is no documented SLA — the delay depends on the advisory source (GitHub-reviewed vs. NVD auto-import) and review pipeline timing. This means a window exists between a malicious package being published and npm-fw being able to block it.
+GHSA advisories can take over a day from initial detection to appear in the npm advisory API. The delay depends on the advisory source (GitHub-reviewed vs. NVD auto-import) and the review pipeline — there is no documented SLA. This means a window exists between a malicious package being published and npm-fw being able to block it.
 
-For defense in depth, use pnpm's [`minimalReleaseAge`](https://pnpm.io/npmrc#minimalreleaseage) alongside npm-fw. Advisories generally appear within hours, so setting it to 1440 (24 hours, pnpm's default) or higher covers the gap.
+For defense in depth, use pnpm's [`minimalReleaseAge`](https://pnpm.io/npmrc#minimalreleaseage) alongside npm-fw. Because GHSA advisory publication can take over a day from detection, setting it to 2880 (48 hours) or higher is recommended to cover this gap.
 
 npm-fw does **not**:
 
@@ -132,9 +132,11 @@ npm-fw does **not**:
 | [Takumi Guard](https://shisho.dev/docs/t/guard/)                              | Hosted registry proxy | Proprietary threat intelligence with real-time malware detection (GMO Flatt Security). Free for basic use. |
 | [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain)                  | Local MITM proxy      | Aikido Intel feed for malware blocking + minimum package age filter. Free, no account needed.              |
 | [Socket Firewall](https://github.com/SocketDev/sfw-free)                      | Local wrapper         | Socket's proprietary threat detection. Free tier available.                                                |
-| **npm-fw** ([@kimuson/npm-fw](https://www.npmjs.com/package/@kimuson/npm-fw)) | Local HTTP proxy      | Advisory API only. No external service, no telemetry, no API key. MIT licensed.                            |
+| [npq](https://github.com/lirantal/npq)                                        | Pre-install checker   | Heuristic checks (age, downloads, scripts) + Snyk vulnerability database. Free, no account needed.         |
 
-npm-fw is the lightest option: it relies solely on npm's public advisory database, requires no third-party service, and collects no data. If you need real-time malware detection beyond published advisories, the other projects fill that gap.
+npm-fw's advantage is that it uses only npm's public advisory API endpoint — no external services, no telemetry, no API keys. If you use a data source beyond GitHub Advisory (via npm), you may need to account for separate licenses or telemetry requirements. This makes npm-fw the right choice when network constraints or internal policies restrict communication beyond the npm registry.
+
+On the other hand, security vendors' proprietary data sources generally reflect vulnerabilities and malware faster than the public advisory database. If you need stronger, real-time blocking, the similar projects above are recommended.
 
 ## License
 
