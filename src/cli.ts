@@ -5,6 +5,9 @@ import getPort from "get-port";
 import { runDaemon } from "./daemon.ts";
 import { readState, isAlive, writeState, removeState } from "./daemon-state.ts";
 import pkg from "../package.json" with { type: "json" };
+import { readFile, writeFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { homedir } from "node:os";
 
 const DAEMON_STARTUP_TIMEOUT_MS = 15_000;
 const DAEMON_BASE_PORT = 42424;
@@ -67,6 +70,7 @@ const runCommand = async (args: string[]): Promise<void> => {
   }
 
   const port = await ensureDaemon();
+  const registry = `http://localhost:${port}/`;
 
   const [cmd, ...cmdArgs] = args;
   if (cmd === undefined) {
@@ -77,7 +81,10 @@ const runCommand = async (args: string[]): Promise<void> => {
     stdio: "inherit",
     env: {
       ...process.env,
-      npm_config_registry: `http://localhost:${port}/`,
+      npm_config_registry: registry,
+      pnpm_config_registry: registry,
+      YARN_NPM_REGISTRY_SERVER: registry,
+      YARN_REGISTRY: registry,
     },
   });
 
@@ -104,6 +111,85 @@ const npmConfig = (args: string[]): Promise<{ stdout: string; stderr: string; co
     child.on("close", (code) => resolve({ stdout, stderr, code: code ?? 1 }));
   });
 
+const yarnConfig = (
+  args: string[],
+): Promise<{ stdout: string; stderr: string; code: number | null }> =>
+  new Promise((resolve) => {
+    const child = spawn("yarn", ["config", ...args], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (d: string) => {
+      stdout += d;
+    });
+    child.stderr?.on("data", (d: string) => {
+      stderr += d;
+    });
+    child.on("error", () => resolve({ stdout, stderr, code: null }));
+    child.on("close", (code) => resolve({ stdout, stderr, code: code ?? 1 }));
+  });
+
+// --- yarnrc helper ---
+
+const YARNRC_PATH = join(homedir(), ".yarnrc.yml");
+
+const readYarnrcLines = async (): Promise<string[]> => {
+  try {
+    const content = await readFile(YARNRC_PATH, "utf-8");
+    return content.split("\n");
+  } catch {
+    return [];
+  }
+};
+
+const writeYarnrcLines = async (lines: string[]): Promise<void> => {
+  const nonEmpty = lines.filter((line) => line.trim() !== "");
+  if (nonEmpty.length === 0) {
+    try {
+      await rm(YARNRC_PATH, { force: true });
+    } catch {
+      // ignore
+    }
+    return;
+  }
+  const content = nonEmpty.join("\n") + "\n";
+  await writeFile(YARNRC_PATH, content);
+};
+
+const setYarnNpmRegistryServer = async (registry: string): Promise<void> => {
+  const lines = await readYarnrcLines();
+  const key = "npmRegistryServer:";
+  let found = false;
+
+  const updated = lines.map((line) => {
+    if (line.trimStart().startsWith(key)) {
+      found = true;
+      return `npmRegistryServer: "${registry}"`;
+    }
+    return line;
+  });
+
+  if (!found) {
+    updated.push(`npmRegistryServer: "${registry}"`);
+  }
+
+  await writeYarnrcLines(updated);
+};
+
+const deleteYarnNpmRegistryServer = async (): Promise<boolean> => {
+  const lines = await readYarnrcLines();
+  if (lines.length === 0) return false;
+
+  const key = "npmRegistryServer:";
+  const updated = lines.filter((line) => !line.trimStart().startsWith(key));
+
+  if (updated.length === lines.length) return false;
+
+  await writeYarnrcLines(updated);
+  return true;
+};
+
 // --- CLI ---
 
 const program = new Command()
@@ -128,9 +214,41 @@ program
       process.exit(1);
     }
 
+    // Write yarn berry config
+    await setYarnNpmRegistryServer(registry);
+
     console.log(`✅ npm-fw is set up as registry proxy`);
     console.log(`   Registry: ${registry}`);
     console.log(`   Run "npm-fw doctor" to verify the setup`);
+  });
+
+// clean
+program
+  .command("clean")
+  .description("Remove npm-fw standalone configuration and stop the daemon")
+  .action(async () => {
+    let cleaned = false;
+
+    // Stop daemon
+    const daemonStopped = await stopDaemon();
+
+    // Remove npm registry config
+    const npmResult = await npmConfig(["delete", "registry"]);
+    if (npmResult.code === 0) {
+      cleaned = true;
+    }
+
+    // Remove yarn berry config
+    const yarnCleaned = await deleteYarnNpmRegistryServer();
+    if (yarnCleaned) {
+      cleaned = true;
+    }
+
+    if (daemonStopped || cleaned) {
+      console.log("✅ Cleaned up npm-fw configuration");
+    } else {
+      console.log("Nothing to clean");
+    }
   });
 
 // doctor
@@ -139,6 +257,8 @@ program
   .description("Check daemon status and npm registry configuration")
   .action(async () => {
     let hasError = false;
+
+    const normalizeUrl = (url: string): string => url.trim().replace(/\/+$/, "");
 
     // Check daemon
     const state = await readState();
@@ -149,26 +269,61 @@ program
       console.log(`✅ Daemon running (pid: ${state.pid}, port: ${state.port})`);
     }
 
-    // Check npm registry config
     if (state && isAlive(state.pid)) {
       const expectedRegistry = `http://localhost:${state.port}/`;
-      const { stdout, code } = await npmConfig(["get", "registry"]);
+      const expected = normalizeUrl(expectedRegistry);
 
-      if (code !== 0) {
+      // Check npm config
+      const { stdout: npmOut, code: npmCode } = await npmConfig(["get", "registry"]);
+
+      if (npmCode !== 0) {
         console.log("❌ Could not read npm registry config");
         hasError = true;
       } else {
-        const normalizeUrl = (url: string): string => url.trim().replace(/\/+$/, "");
-        const current = normalizeUrl(stdout);
-        const expected = normalizeUrl(expectedRegistry);
+        const current = normalizeUrl(npmOut);
 
         if (current === expected) {
-          console.log(`✅ npm registry: ${stdout.trim()}`);
+          console.log(`✅ npm registry: ${npmOut.trim()}`);
         } else {
           console.log("⚠️  npm registry is not routed through npm-fw");
-          console.log(`   Current:  ${stdout.trim() || "(not set)"}`);
+          console.log(`   Current:  ${npmOut.trim() || "(not set)"}`);
           console.log(`   Expected: ${expectedRegistry}`);
           hasError = true;
+        }
+      }
+
+      // Check yarn config
+      const yarnBerry = await yarnConfig(["get", "npmRegistryServer"]);
+      if (yarnBerry.code === null) {
+        console.log("ℹ️  yarn not found (skipped yarn checks)");
+      } else {
+        if (yarnBerry.code === 0) {
+          const current = normalizeUrl(yarnBerry.stdout);
+          if (current === expected) {
+            console.log(`✅ yarn berry registry: ${yarnBerry.stdout.trim()}`);
+          } else {
+            console.log("⚠️  yarn berry registry is not routed through npm-fw");
+            console.log(`   Current:  ${yarnBerry.stdout.trim() || "(not set)"}`);
+            console.log(`   Expected: ${expectedRegistry}`);
+            hasError = true;
+          }
+        } else {
+          console.log("ℹ️  yarn berry registry: not set");
+        }
+
+        const yarnV1 = await yarnConfig(["get", "registry"]);
+        if (yarnV1.code === 0) {
+          const current = normalizeUrl(yarnV1.stdout);
+          if (current === expected) {
+            console.log(`✅ yarn v1 registry: ${yarnV1.stdout.trim()}`);
+          } else {
+            console.log("⚠️  yarn v1 registry is not routed through npm-fw");
+            console.log(`   Current:  ${yarnV1.stdout.trim() || "(not set)"}`);
+            console.log(`   Expected: ${expectedRegistry}`);
+            hasError = true;
+          }
+        } else {
+          console.log("ℹ️  yarn v1 registry: not set");
         }
       }
     }
@@ -227,7 +382,9 @@ program.addHelpText(
 Examples:
   $ npm-fw npm install axios
   $ npm-fw pnpm add -D @types/node
+  $ npm-fw yarn add @types/node
   $ npm-fw setup-standalone
+  $ npm-fw clean
   $ npm-fw doctor
   $ npm-fw daemon-stop
   $ npm-fw daemon-reload

@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/%40kimuson%2Fnpm-fw?color=yellow&style=for-the-badge)](https://www.npmjs.com/package/@kimuson/npm-fw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://github.com/d-kimuson/npm-fw/blob/main/LICENSE)
 
-npm registry proxy firewall. Blocks vulnerable packages — including transitive dependencies — before they reach `node_modules`. Falls back to the newest safe version when `latest` is affected.
+npm registry proxy firewall. Fall back of blocks vulnerable packages — including transitive dependencies — before they reach `node_modules`.
 
 ## Quick Start
 
@@ -40,9 +40,10 @@ This starts the daemon and runs `npm config set registry` for you. All subsequen
 To go back to the default registry:
 
 ```bash
-npm config delete registry
-npm-fw daemon-stop
+npm-fw clean
 ```
+
+This stops the daemon, removes the registry from `.npmrc`, and clears `~/.yarnrc.yml`.
 
 ## How it works
 
@@ -71,7 +72,23 @@ npm-fw uses npm's public Bulk Advisory Endpoint — the same endpoint that `npm 
 - **Severity threshold** — blocks only at or above the configured level (default: `high`)
 - **Static blocklist** — block specific packages or versions regardless of advisories
 - **Drop-in** — works with npm, pnpm, yarn, and any npm-registry-compatible client
+- **Multi-registry** — sets the correct environment variable per package manager, including Yarn Berry's YAML config
 - **Zero external service dependencies** — only talks to the public npm registry API
+
+## Supported Package Managers
+
+npm-fw injects the right configuration for each package manager so you don't have to configure anything manually.
+
+| Package manager | Per-command (env var)               | Standalone (persisted config) |
+| --------------- | ----------------------------------- | ----------------------------- |
+| npm             | `npm_config_registry`               | `.npmrc` (`npm config set`)   |
+| pnpm            | `pnpm_config_registry`              | `.npmrc` (`npm config set`)   |
+| Yarn v1         | `YARN_REGISTRY`                     | `.npmrc` (`npm config set`)   |
+| Yarn Berry (v2+)| `YARN_NPM_REGISTRY_SERVER`          | `~/.yarnrc.yml` (`npmRegistryServer`) |
+
+> **Note:** npm (`npm_config_*`) and pnpm (`pnpm_config_*`) use separate environment variable prefixes since pnpm v11. npm-fw sets both automatically.
+
+Bun and Deno read `.npmrc` natively, so they work out of the box in standalone mode.
 
 ## CLI Reference
 
@@ -88,6 +105,7 @@ Options:
 
 Commands:
   setup-standalone  Set up npm-fw as a persistent registry proxy
+  clean             Remove standalone configuration and stop the daemon
   doctor            Check daemon status and npm registry configuration
   daemon-reload     Restart the proxy daemon
   daemon-start      Start the proxy daemon directly (for systemd/launchd)
