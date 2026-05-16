@@ -5,7 +5,7 @@ npm registry proxy firewall. Blocks vulnerable packages — including transitive
 ## Quick Start
 
 ```bash
-npm install -g npm-fw
+npm install -g @kimuson/npm-fw
 ```
 
 ### Per-command wrapper
@@ -109,7 +109,7 @@ npm-fw does **not**:
 | [Takumi Guard](https://shisho.dev/docs/t/guard/) | Hosted registry proxy | Proprietary threat intelligence with real-time malware detection (GMO Flatt Security). Free for basic use. |
 | [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain) | Local MITM proxy | Aikido Intel feed for malware blocking + minimum package age filter. Free, no account needed. |
 | [Socket Firewall](https://github.com/SocketDev/sfw-free) | Local wrapper | Socket's proprietary threat detection. Free tier available. |
-| **npm-fw** | Local HTTP proxy | Advisory API only. No external service, no telemetry, no API key. MIT licensed. |
+| **npm-fw** ([@kimuson/npm-fw](https://www.npmjs.com/package/@kimuson/npm-fw)) | Local HTTP proxy | Advisory API only. No external service, no telemetry, no API key. MIT licensed. |
 
 npm-fw is the lightest option: it relies solely on npm's public advisory database, requires no third-party service, and collects no data. If you need real-time malware detection beyond published advisories, the other projects fill that gap.
 

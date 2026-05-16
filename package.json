@@ -1,7 +1,21 @@
 {
-  "name": "npm-fw",
+  "name": "@kimuson/npm-fw",
   "version": "0.0.0",
+  "description": "npm registry proxy firewall — blocks vulnerable packages before they reach node_modules",
+  "keywords": [
+    "advisory",
+    "firewall",
+    "npm",
+    "proxy",
+    "security",
+    "supply-chain"
+  ],
   "license": "MIT",
+  "author": "kimuson <kaito.sakurai.3@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/d-kimuson/npm-fw"
+  },
   "bin": {
     "npm-fw": "./dist/cli.mjs"
   },
@@ -9,6 +23,9 @@
     "dist"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "typecheck": "tsgo -p . --noEmit",
     "dev": "node --watch src/main.ts",
@@ -21,6 +38,9 @@
     "fix:oxlint": "pnpm lint:oxlint --fix",
     "fix:oxfmt": "oxfmt --ignore-path .gitignore --no-error-on-unmatched-pattern",
     "test": "vitest run --passWithNoTests",
+    "prepack": "pnpm build && clean-pkg-json",
+    "pack:local": "scripts/pack/pack.sh",
+    "check:pack": "scripts/pack/check.sh",
     "prepare": "lefthook install"
   },
   "devDependencies": {
@@ -29,6 +49,7 @@
     "@types/node": "25.6.2",
     "@types/semver": "7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260510.1",
+    "clean-pkg-json": "1.4.2",
     "commander": "14.0.3",
     "gatecheck": "0.0.1-beta.5",
     "get-port": "7.2.0",

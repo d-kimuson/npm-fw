@@ -1,29 +1,12 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { readFileSync } from "node:fs";
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 import getPort from "get-port";
 import { runDaemon } from "./daemon.ts";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// --- package.json ---
-
-type PackageJson = { version: string };
-const isPackageJson = (data: unknown): data is PackageJson => {
-  if (typeof data !== "object" || data === null) return false;
-  return "version" in data && typeof (data as Record<string, unknown>)["version"] === "string";
-};
-const readPkg = (): PackageJson => {
-  const raw = readFileSync(join(__dirname, "../package.json"), "utf-8");
-  const data: unknown = JSON.parse(raw);
-  if (!isPackageJson(data)) throw new Error("Invalid package.json");
-  return data;
-};
+import pkg from "../package.json";
 
 // --- daemon state ---
 
@@ -168,8 +151,6 @@ const npmConfig = (args: string[]): Promise<{ stdout: string; stderr: string; co
   });
 
 // --- CLI ---
-
-const pkg = readPkg();
 
 const program = new Command();
 
