@@ -18,7 +18,7 @@ export const checkAdvisory = async (options: CheckOptions): Promise<readonly Adv
   const doFetch = options.fetch ?? globalThis.fetch;
 
   const cacheKey = `${pkg}@${version}`;
-  const cached = advisoryCache.get(cacheKey);
+  const cached = getCached(cacheKey);
   if (cached !== undefined) return cached;
 
   const url = `${registryUrl}/-/npm/v1/security/advisories/bulk`;
@@ -44,7 +44,7 @@ export const checkAdvisory = async (options: CheckOptions): Promise<readonly Adv
   }
 
   const advisories = extractAdvisories(json, pkg);
-  advisoryCache.set(cacheKey, advisories);
+  setCached(cacheKey, advisories);
   return advisories;
 };
 
@@ -61,7 +61,7 @@ export const checkAdvisoriesBulk = async (
   const uncached: Record<string, string[]> = {};
 
   for (const [pkg, versions] of Object.entries(packages)) {
-    const missing = versions.filter((v) => advisoryCache.get(`${pkg}@${v}`) === undefined);
+    const missing = versions.filter((v) => getCached(`${pkg}@${v}`) === undefined);
     if (missing.length > 0) {
       uncached[pkg] = missing;
     }
@@ -144,7 +144,7 @@ const cacheAdvisoriesResponse = (json: unknown, uncached: Record<string, string[
     if (!Array.isArray(advisories)) continue;
     const filtered = advisories.filter(isAdvisory);
     for (const v of uncached[pkg] ?? []) {
-      advisoryCache.set(`${pkg}@${v}`, filtered);
+      setCached(`${pkg}@${v}`, filtered);
     }
   }
 };
@@ -153,7 +153,7 @@ const cacheAdvisoriesResponse = (json: unknown, uncached: Record<string, string[
 const buildResultFromCache = (packages: Record<string, string[]>): AdvisoriesResponse => {
   const result: AdvisoriesResponse = {};
   for (const [pkg, versions] of Object.entries(packages)) {
-    result[pkg] = versions.map((v) => advisoryCache.get(`${pkg}@${v}`) ?? []).flat();
+    result[pkg] = versions.map((v) => getCached(`${pkg}@${v}`) ?? []).flat();
   }
   return result;
 };
@@ -171,8 +171,37 @@ const isAdvisory = (value: unknown): value is Advisory => {
   );
 };
 
-/** インメモリキャッシュ。TTL は一旦なし（advisory は追加のみで変わらない） */
-const advisoryCache = new Map<string, readonly Advisory[]>();
+/** キャッシュエントリ。cachedAt で有効期限を判定する */
+type CacheEntry = {
+  readonly advisories: readonly Advisory[];
+  readonly cachedAt: number;
+};
+
+/**
+ * キャッシュの TTL（ミリ秒）。
+ * pnpm audit など既存実装を参考に 12 時間。
+ * advisory データは公開後にも更新される可能性があるため。
+ */
+const ADVISORY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+
+/** インメモリキャッシュ。TTL で期限切れを管理 */
+const advisoryCache = new Map<string, CacheEntry>();
+
+/** キャッシュから有効なエントリを取得。期限切れなら undefined */
+const getCached = (key: string): readonly Advisory[] | undefined => {
+  const entry = advisoryCache.get(key);
+  if (entry === undefined) return undefined;
+  if (Date.now() - entry.cachedAt > ADVISORY_CACHE_TTL_MS) {
+    advisoryCache.delete(key);
+    return undefined;
+  }
+  return entry.advisories;
+};
+
+/** キャッシュにエントリを保存 */
+const setCached = (key: string, advisories: readonly Advisory[]): void => {
+  advisoryCache.set(key, { advisories, cachedAt: Date.now() });
+};
 
 /** テスト用にキャッシュをクリア */
 export const clearAdvisoryCache = (): void => {

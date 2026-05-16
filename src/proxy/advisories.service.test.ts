@@ -106,4 +106,65 @@ describe("checkAdvisory", () => {
 
     expect(result).toHaveLength(0);
   });
+
+  it("re-fetches advisory after cache TTL expires", async () => {
+    // useFakeTimers で Date.now() を制御
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+    const mockFetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          axios: [
+            {
+              id: 1,
+              title: "Test vuln",
+              severity: "high",
+              vulnerable_versions: ">=1.0.0",
+              cwe: [],
+              cvss: { score: 7.5, vectorString: null },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    clearAdvisoryCache();
+
+    // 1回目の呼び出し → API が呼ばれる
+    await checkAdvisory({
+      registryUrl: "https://registry.npmjs.org",
+      pkg: "axios",
+      version: "1.6.0",
+      fetch: mockFetch,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // 2回目の呼び出し（TTL 内）→ キャッシュヒット
+    await checkAdvisory({
+      registryUrl: "https://registry.npmjs.org",
+      pkg: "axios",
+      version: "1.6.0",
+      fetch: mockFetch,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1); // 呼ばれない
+
+    // TTL（12h + 1ms）経過後
+    vi.advanceTimersByTime(12 * 60 * 60 * 1000 + 1);
+
+    // 3回目の呼び出し → キャッシュ期限切れで API 再呼び出し
+    await checkAdvisory({
+      registryUrl: "https://registry.npmjs.org",
+      pkg: "axios",
+      version: "1.6.0",
+      fetch: mockFetch,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
 });
