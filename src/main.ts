@@ -1,4 +1,7 @@
 import { startServer } from "./server.ts";
+import { initAdvisoryCache } from "./proxy/advisories.service.ts";
+
+void initAdvisoryCache();
 
 startServer({
   proxyConfig: {

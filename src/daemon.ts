@@ -1,6 +1,7 @@
 import { startServer } from "./server.ts";
 import type { ProxyConfig } from "./proxy/types.ts";
 import { writeStateSync } from "./daemon-state.ts";
+import { initAdvisoryCache } from "./proxy/advisories.service.ts";
 
 const readPort = (): number => {
   const envPort = process.env["NPM_FW_PORT"];
@@ -22,6 +23,8 @@ export const runDaemon = (): void => {
   };
 
   writeStateSync({ pid: process.pid, port });
+
+  void initAdvisoryCache();
 
   startServer({ port, proxyConfig });
 

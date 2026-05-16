@@ -1,6 +1,15 @@
+import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type { Advisory, AdvisoriesResponse, AdvisorySeverity } from "./types.ts";
 
 type FetchFn = typeof globalThis.fetch;
+
+const STATE_DIR = join(homedir(), ".npm-fw");
+const CACHE_FILE = join(STATE_DIR, "advisory-cache.json");
+
+/** ディスクへの書き込みをまとめる debounce 間隔（ミリ秒） */
+const FLUSH_DEBOUNCE_MS = 5_000;
 
 type CheckOptions = {
   readonly registryUrl: string;
@@ -198,12 +207,82 @@ const getCached = (key: string): readonly Advisory[] | undefined => {
   return entry.advisories;
 };
 
-/** キャッシュにエントリを保存 */
+/** キャッシュにエントリを保存（インメモリ即反映 + debounce 付きディスク永続化） */
 const setCached = (key: string, advisories: readonly Advisory[]): void => {
   advisoryCache.set(key, { advisories, cachedAt: Date.now() });
+  scheduleFlush();
 };
 
-/** テスト用にキャッシュをクリア */
+/** debounce 用タイマー。セットされていれば保留中の flush がある */
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** ディスクにキャッシュを永続化する（fire-and-forget） */
+const flushCacheToDisk = (): void => {
+  // スナップショットを取ってから非同期で書き込む
+  const snapshot: Record<string, CacheEntry> = {};
+  for (const [key, entry] of advisoryCache) {
+    snapshot[key] = entry;
+  }
+  void (async () => {
+    try {
+      if (Object.keys(snapshot).length === 0) {
+        await rm(CACHE_FILE, { force: true });
+        return;
+      }
+      await mkdir(STATE_DIR, { recursive: true });
+      await writeFile(CACHE_FILE, JSON.stringify(snapshot));
+    } catch {
+      // ディスク書き込み失敗は握り潰す（ログだけ出してもよい）
+    }
+  })();
+};
+
+/** debounce 付きでディスク flush をスケジュール */
+const scheduleFlush = (): void => {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+  }
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    flushCacheToDisk();
+  }, FLUSH_DEBOUNCE_MS);
+};
+
+/** 起動時にディスクからキャッシュを読み込む。期限切れエントリは破棄 */
+const loadPersistedCache = async (): Promise<void> => {
+  try {
+    const raw = await readFile(CACHE_FILE, "utf-8");
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return;
+    const now = Date.now();
+    // oxlint-disable-next-line no-unsafe-type-assertion
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!isCacheEntry(value)) continue;
+      if (now - value.cachedAt > ADVISORY_CACHE_TTL_MS) continue;
+      advisoryCache.set(key, value);
+    }
+  } catch {
+    // ファイルが存在しない or 読み取り失敗 → 空キャッシュで開始
+  }
+};
+
+/** キャッシュエントリの型ガード */
+const isCacheEntry = (value: unknown): value is CacheEntry => {
+  if (typeof value !== "object" || value === null) return false;
+  // oxlint-disable-next-line no-unsafe-type-assertion
+  const obj = value as Record<string, unknown>;
+  return Array.isArray(obj["advisories"]) && typeof obj["cachedAt"] === "number";
+};
+
+/** 起動時初期化: ディスクからキャッシュを読み込む */
+export const initAdvisoryCache = (): Promise<void> => loadPersistedCache();
+
+/** テスト用にキャッシュをクリア（インメモリ + 保留中の flush + ディスク） */
 export const clearAdvisoryCache = (): void => {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
   advisoryCache.clear();
+  void rm(CACHE_FILE, { force: true });
 };

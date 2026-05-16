@@ -79,12 +79,12 @@ npm-fw uses npm's public Bulk Advisory Endpoint — the same endpoint that `npm 
 
 npm-fw injects the right configuration for each package manager so you don't have to configure anything manually.
 
-| Package manager | Per-command (env var)               | Standalone (persisted config) |
-| --------------- | ----------------------------------- | ----------------------------- |
-| npm             | `npm_config_registry`               | `.npmrc` (`npm config set`)   |
-| pnpm            | `pnpm_config_registry`              | `.npmrc` (`npm config set`)   |
-| Yarn v1         | `YARN_REGISTRY`                     | `.npmrc` (`npm config set`)   |
-| Yarn Berry (v2+)| `YARN_NPM_REGISTRY_SERVER`          | `~/.yarnrc.yml` (`npmRegistryServer`) |
+| Package manager  | Per-command (env var)      | Standalone (persisted config)         |
+| ---------------- | -------------------------- | ------------------------------------- |
+| npm              | `npm_config_registry`      | `.npmrc` (`npm config set`)           |
+| pnpm             | `pnpm_config_registry`     | `.npmrc` (`npm config set`)           |
+| Yarn v1          | `YARN_REGISTRY`            | `.npmrc` (`npm config set`)           |
+| Yarn Berry (v2+) | `YARN_NPM_REGISTRY_SERVER` | `~/.yarnrc.yml` (`npmRegistryServer`) |
 
 > **Note:** npm (`npm_config_*`) and pnpm (`pnpm_config_*`) use separate environment variable prefixes since pnpm v11. npm-fw sets both automatically.
 
@@ -127,12 +127,12 @@ npm-fw does **not**:
 
 ## Similar projects
 
-| Project                                                                       | Approach              | Key difference                                                                                             |
-| ----------------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [Takumi Guard](https://shisho.dev/docs/t/guard/)                              | Hosted registry proxy | Proprietary threat intelligence with real-time malware detection (GMO Flatt Security). Free for basic use. |
-| [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain)                  | Local MITM proxy      | Aikido Intel feed for malware blocking + minimum package age filter. Free, no account needed.              |
-| [Socket Firewall](https://github.com/SocketDev/sfw-free)                      | Local wrapper         | Socket's proprietary threat detection. Free tier available.                                                |
-| [npq](https://github.com/lirantal/npq)                                        | Pre-install checker   | Heuristic checks (age, downloads, scripts) + Snyk vulnerability database. Free, no account needed.         |
+| Project                                                      | Approach              | Key difference                                                                                             |
+| ------------------------------------------------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [Takumi Guard](https://shisho.dev/docs/t/guard/)             | Hosted registry proxy | Proprietary threat intelligence with real-time malware detection (GMO Flatt Security). Free for basic use. |
+| [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain) | Local MITM proxy      | Aikido Intel feed for malware blocking + minimum package age filter. Free, no account needed.              |
+| [Socket Firewall](https://github.com/SocketDev/sfw-free)     | Local wrapper         | Socket's proprietary threat detection. Free tier available.                                                |
+| [npq](https://github.com/lirantal/npq)                       | Pre-install checker   | Heuristic checks (age, downloads, scripts) + Snyk vulnerability database. Free, no account needed.         |
 
 npm-fw's advantage is that it uses only npm's public advisory API endpoint — no external services, no telemetry, no API keys. If you use a data source beyond GitHub Advisory (via npm), you may need to account for separate licenses or telemetry requirements. This makes npm-fw the right choice when network constraints or internal policies restrict communication beyond the npm registry.
 
