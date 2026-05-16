@@ -38,13 +38,14 @@
     "fix:oxlint": "pnpm lint:oxlint --fix",
     "fix:oxfmt": "oxfmt --ignore-path .gitignore --no-error-on-unmatched-pattern",
     "test": "vitest run --passWithNoTests",
-    "prepack": "node scripts/release.ts && clean-pkg-json"
+    "prepack": "pnpm build && clean-pkg-json"
   },
   "devDependencies": {
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "25.6.2",
     "@types/semver": "7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260510.1",
+    "changelogithub": "14.0.0",
     "clean-pkg-json": "1.4.2",
     "commander": "14.0.3",
     "gatecheck": "0.0.1-beta.5",
