@@ -1,6 +1,6 @@
 {
   "name": "@kimuson/npm-fw",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "npm registry proxy firewall — blocks vulnerable packages before they reach node_modules",
   "keywords": [
     "advisory",
