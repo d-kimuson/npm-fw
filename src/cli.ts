@@ -16,6 +16,8 @@ import { readFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
+const ADVISORY_CACHE_FILE = join(homedir(), ".npm-fw", "advisory-cache.json");
+
 const DAEMON_STARTUP_TIMEOUT_MS = 15_000;
 const DAEMON_BASE_PORT = 42424;
 
@@ -227,6 +229,41 @@ program
     console.log(`✅ npm-fw is set up as registry proxy`);
     console.log(`   Registry: ${registry}`);
     console.log(`   Run "npm-fw doctor" to verify the setup`);
+  });
+
+// cache-clean
+program
+  .command("cache-clean")
+  .description("Clear advisory cache (disk + in-memory) and reload daemon if running")
+  .action(async () => {
+    // ディスクキャッシュ削除
+    let diskCleaned = false;
+    try {
+      await rm(ADVISORY_CACHE_FILE, { force: true });
+      diskCleaned = true;
+    } catch {
+      // ignore
+    }
+
+    // デーモン再起動でメモリキャッシュもクリア
+    const state = await readState();
+    if (state !== null && isAlive(state.pid)) {
+      await stopDaemon();
+      try {
+        const port = await ensureDaemon();
+        console.log(`✅ Cache cleared and daemon restarted on http://localhost:${port}`);
+      } catch (err) {
+        console.error("Failed to restart daemon:", err);
+        process.exit(1);
+      }
+    } else {
+      if (diskCleaned) {
+        console.log("✅ Advisory cache cleared");
+        console.log("   Daemon is not running — cache will be empty on next start");
+      } else {
+        console.log("No cache to clear");
+      }
+    }
   });
 
 // clean
