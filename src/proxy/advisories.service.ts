@@ -148,11 +148,10 @@ const cacheAdvisoriesResponse = (json: unknown, uncached: Record<string, string[
   if (typeof json !== "object" || json === null) return;
   // oxlint-disable-next-line no-unsafe-type-assertion
   const obj = json as Record<string, unknown>;
-  for (const pkg of Object.keys(obj)) {
+  for (const [pkg, versions] of Object.entries(uncached)) {
     const advisories = obj[pkg];
-    if (!Array.isArray(advisories)) continue;
-    const filtered = advisories.filter(isAdvisory);
-    for (const v of uncached[pkg] ?? []) {
+    const filtered = Array.isArray(advisories) ? advisories.filter(isAdvisory) : [];
+    for (const v of versions) {
       setCached(`${pkg}@${v}`, filtered);
     }
   }
