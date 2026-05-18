@@ -146,3 +146,5 @@ vite.config.ts.timestamp-*
 # agents
 .pi/goals
 docs/tmp
+
+temp-pack
