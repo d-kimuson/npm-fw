@@ -1,5 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { readState, isAlive, writeState, writeStateSync, removeState } from "./daemon-state.ts";
+import {
+  readState,
+  isAlive,
+  writeState,
+  writeStateSync,
+  removeState,
+  readUserConfig,
+  writeUserConfig,
+} from "./daemon-state.ts";
 
 // テスト用に STATE_DIR / STATE_FILE を固定するために homedir をモック
 vi.mock("node:os", () => ({
@@ -19,16 +27,18 @@ vi.mock("node:fs/promises", () => ({
   rm: (...args: unknown[]): Promise<void> => mockRm(...args),
 }));
 
+const mockReadFileSync = vi.fn<(...args: unknown[]) => string>();
 const mockWriteFileSync = vi.fn<(...args: unknown[]) => void>();
 const mockMkdirSync = vi.fn<(...args: unknown[]) => void>();
 
 vi.mock("node:fs", () => ({
+  readFileSync: (...args: unknown[]): string => mockReadFileSync(...args),
   writeFileSync: (...args: unknown[]): void => mockWriteFileSync(...args),
   mkdirSync: (...args: unknown[]): void => mockMkdirSync(...args),
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe("readState", () => {
@@ -103,6 +113,8 @@ describe("isAlive", () => {
 
 describe("writeState", () => {
   it("creates directory and writes state file", async () => {
+    // 既存ファイルなし（readFile が reject → readFull が null を返す）
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
     mockMkdir.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue(undefined);
 
@@ -114,10 +126,28 @@ describe("writeState", () => {
       JSON.stringify({ pid: 12345, port: 42424 }),
     );
   });
+
+  it("merges with existing user config when writing state", async () => {
+    mockReadFile.mockResolvedValue(JSON.stringify({ minSeverity: "critical" }));
+    mockMkdir.mockResolvedValue(undefined);
+    mockWriteFile.mockResolvedValue(undefined);
+
+    await writeState({ pid: 12345, port: 42424 });
+
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      "/home/test-user/.npm-fw/daemon.json",
+      JSON.stringify({ minSeverity: "critical", pid: 12345, port: 42424 }),
+    );
+  });
 });
 
 describe("writeStateSync", () => {
   it("creates directory and writes state file synchronously", () => {
+    // 既存ファイルなし（readFileSync が throw → readFullSync が null を返す）
+    mockReadFileSync.mockImplementation(() => {
+      throw new Error("ENOENT");
+    });
+
     writeStateSync({ pid: 12345, port: 42424 });
 
     expect(mockMkdirSync).toHaveBeenCalledWith("/home/test-user/.npm-fw", { recursive: true });
@@ -126,10 +156,22 @@ describe("writeStateSync", () => {
       JSON.stringify({ pid: 12345, port: 42424 }),
     );
   });
+
+  it("merges with existing user config when writing state", () => {
+    mockReadFileSync.mockReturnValue(JSON.stringify({ minSeverity: "low" }));
+
+    writeStateSync({ pid: 99999, port: 55555 });
+
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      "/home/test-user/.npm-fw/daemon.json",
+      JSON.stringify({ minSeverity: "low", pid: 99999, port: 55555 }),
+    );
+  });
 });
 
 describe("removeState", () => {
-  it("removes state file", async () => {
+  it("removes state file when no user config exists", async () => {
+    mockReadFile.mockResolvedValue(JSON.stringify({ pid: 12345, port: 42424 }));
     mockRm.mockResolvedValue(undefined);
 
     await removeState();
@@ -137,9 +179,67 @@ describe("removeState", () => {
     expect(mockRm).toHaveBeenCalledWith("/home/test-user/.npm-fw/daemon.json", { force: true });
   });
 
+  it("preserves user config when removing runtime state", async () => {
+    mockReadFile.mockResolvedValue(JSON.stringify({ pid: 12345, port: 42424, minSeverity: "low" }));
+    mockWriteFile.mockResolvedValue(undefined);
+
+    await removeState();
+
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      "/home/test-user/.npm-fw/daemon.json",
+      JSON.stringify({ minSeverity: "low" }),
+    );
+    expect(mockRm).not.toHaveBeenCalled();
+  });
+
   it("does not throw when file does not exist", async () => {
-    mockRm.mockRejectedValue(new Error("ENOENT"));
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
 
     await expect(removeState()).resolves.toBeUndefined();
+  });
+});
+
+describe("readUserConfig", () => {
+  it("returns default minSeverity when file does not exist", async () => {
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
+
+    const config = await readUserConfig();
+    expect(config).toEqual({ minSeverity: "high" });
+  });
+
+  it("returns minSeverity from daemon.json", async () => {
+    mockReadFile.mockResolvedValue(JSON.stringify({ minSeverity: "critical", pid: 123 }));
+
+    const config = await readUserConfig();
+    expect(config).toEqual({ minSeverity: "critical" });
+  });
+
+  it("falls back to default when minSeverity is invalid", async () => {
+    mockReadFile.mockResolvedValue(JSON.stringify({ minSeverity: "unknown" }));
+
+    const config = await readUserConfig();
+    expect(config).toEqual({ minSeverity: "high" });
+  });
+
+  it("falls back when minSeverity is not a string", async () => {
+    mockReadFile.mockResolvedValue(JSON.stringify({ minSeverity: 123 }));
+
+    const config = await readUserConfig();
+    expect(config).toEqual({ minSeverity: "high" });
+  });
+});
+
+describe("writeUserConfig", () => {
+  it("writes user config merging with existing runtime state", async () => {
+    mockReadFile.mockResolvedValue(JSON.stringify({ pid: 12345, port: 42424 }));
+    mockMkdir.mockResolvedValue(undefined);
+    mockWriteFile.mockResolvedValue(undefined);
+
+    await writeUserConfig({ minSeverity: "low" });
+
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      "/home/test-user/.npm-fw/daemon.json",
+      JSON.stringify({ pid: 12345, port: 42424, minSeverity: "low" }),
+    );
   });
 });

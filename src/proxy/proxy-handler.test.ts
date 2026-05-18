@@ -5,8 +5,7 @@ import type { RequestContext } from "../http-context.ts";
 
 const baseConfig: ProxyConfig = {
   upstream: { registry: "https://registry.npmjs.org" },
-  blocklist: [],
-  metadataFilter: {},
+  minSeverity: "high",
 };
 
 /** RequestContext を作成するヘルパー */
@@ -37,79 +36,29 @@ describe("createProxyHandler", () => {
 
   it("passes through non-metadata responses unchanged", async () => {
     const body = "some tarball data";
-    const mockFetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-      new Response(body, {
-        status: 200,
-        headers: { "content-type": "application/octet-stream" },
-      }),
-    );
+    const mockFetch = vi
+      .fn<typeof globalThis.fetch>()
+      // advisory API 呼び出し: advisories なし
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      // tarball 本リクエスト
+      .mockResolvedValueOnce(
+        new Response(body, {
+          status: 200,
+          headers: { "content-type": "application/octet-stream" },
+        }),
+      );
 
     const handler = createProxyHandler({ config: baseConfig, fetch: mockFetch });
     const res = await handler(req("/axios/-/axios-1.0.0.tgz"));
 
     expect(res.status).toBe(200);
     expect(await res.text()).toBe(body);
-  });
-
-  it("returns 403 for blocked package", async () => {
-    const mockFetch = vi.fn<typeof globalThis.fetch>();
-    const config: ProxyConfig = {
-      ...baseConfig,
-      blocklist: [{ type: "package", name: "malware" }],
-    };
-
-    const handler = createProxyHandler({ config, fetch: mockFetch });
-    const res = await handler(req("/malware"));
-
-    expect(res.status).toBe(403);
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("returns 403 for blocked package tarball", async () => {
-    const mockFetch = vi.fn<typeof globalThis.fetch>();
-    const config: ProxyConfig = {
-      ...baseConfig,
-      blocklist: [{ type: "package", name: "malware" }],
-    };
-
-    const handler = createProxyHandler({ config, fetch: mockFetch });
-    const res = await handler(req("/malware/-/malware-1.0.0.tgz"));
-
-    expect(res.status).toBe(403);
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("returns 403 for blocked specific version", async () => {
-    const mockFetch = vi.fn<typeof globalThis.fetch>();
-    const config: ProxyConfig = {
-      ...baseConfig,
-      blocklist: [{ type: "version", name: "axios", version: "1.8.0" }],
-    };
-
-    const handler = createProxyHandler({ config, fetch: mockFetch });
-    const res = await handler(req("/axios/-/axios-1.8.0.tgz"));
-
-    expect(res.status).toBe(403);
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("allows non-blocked version of blocked package (version-block only)", async () => {
-    const mockFetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-      new Response("tarball data", {
-        status: 200,
-        headers: { "content-type": "application/octet-stream" },
-      }),
-    );
-    const config: ProxyConfig = {
-      ...baseConfig,
-      blocklist: [{ type: "version", name: "axios", version: "1.8.0" }],
-    };
-
-    const handler = createProxyHandler({ config, fetch: mockFetch });
-    const res = await handler(req("/axios/-/axios-1.7.0.tgz"));
-
-    expect(res.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("returns 502 when upstream is unreachable", async () => {
@@ -163,7 +112,7 @@ describe("createProxyHandler", () => {
 
       const config: ProxyConfig = {
         ...baseConfig,
-        advisories: { enabled: true, minSeverity: "high" },
+        minSeverity: "high",
       };
       const handler = createProxyHandler({ config, fetch: mockFetch });
       const res = await handler(req("/axios/-/axios-1.6.0.tgz"));
@@ -190,7 +139,7 @@ describe("createProxyHandler", () => {
 
       const config: ProxyConfig = {
         ...baseConfig,
-        advisories: { enabled: true, minSeverity: "high" },
+        minSeverity: "high",
       };
       const handler = createProxyHandler({ config, fetch: mockFetch });
       const res = await handler(req("/axios/-/axios-1.7.0.tgz"));
@@ -240,7 +189,7 @@ describe("createProxyHandler", () => {
 
       const config: ProxyConfig = {
         ...baseConfig,
-        advisories: { enabled: true, minSeverity: "high" },
+        minSeverity: "high",
       };
       const handler = createProxyHandler({ config, fetch: mockFetch });
       const res = await handler(req("/lodash"));
@@ -297,7 +246,7 @@ describe("createProxyHandler", () => {
 
       const config: ProxyConfig = {
         ...baseConfig,
-        advisories: { enabled: true, minSeverity: "high" },
+        minSeverity: "high",
       };
       const handler = createProxyHandler({ config, fetch: mockFetch });
       const res = await handler(req("/lodash"));

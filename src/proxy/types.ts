@@ -11,28 +11,12 @@ export type UpstreamConfig = {
   readonly registry: string;
 };
 
-/** ブロックルール: パッケージ全体をブロック */
-export type PackageBlockRule = {
-  readonly type: "package";
-  readonly name: string;
-};
-
-/** ブロックルール: 特定のバージョンをブロック */
-export type VersionBlockRule = {
-  readonly type: "version";
-  readonly name: string;
-  readonly version: string;
-};
-
-/** ブロックルールの直和 */
-export type BlockRule = PackageBlockRule | VersionBlockRule;
-
-/** メタデータフィルター設定 */
+/** メタデータフィルター設定（advisory ベースで計算される内部表現） */
 export type MetadataFilter = {
   /** 隠すバージョン（metadata.versions から消す） */
-  readonly hideVersions?: readonly string[];
+  readonly hideVersions: readonly string[];
   /** dist-tags.latest を上書きするバージョン */
-  readonly overrideLatest?: string;
+  readonly overrideLatest: string | undefined;
 };
 
 /** npm advisory の severity */
@@ -51,18 +35,13 @@ export type Advisory = {
 /** advisories API のレスポンス: パッケージ名 → Advisory[] */
 export type AdvisoriesResponse = Record<string, Advisory[]>;
 
-/** advisories チェックの設定 */
-export type AdvisoriesConfig = {
-  /** 有効/無効 */
-  readonly enabled: boolean;
-  /** ブロックする最低 severity (デフォルト high) */
-  readonly minSeverity?: AdvisorySeverity;
-};
-
 /** プロキシ全体の設定 */
 export type ProxyConfig = {
   readonly upstream: UpstreamConfig;
-  readonly blocklist: readonly BlockRule[];
-  readonly metadataFilter: MetadataFilter;
-  readonly advisories?: AdvisoriesConfig;
+  readonly minSeverity: AdvisorySeverity;
+};
+
+/** ユーザー設定（daemon.json に永続化） */
+export type UserConfig = {
+  readonly minSeverity: AdvisorySeverity;
 };

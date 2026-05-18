@@ -17,7 +17,13 @@ export const createHandler = (proxyConfig?: ProxyConfig) => {
     // GET /info — health check
     if (req.method === "GET" && req.url === "/info") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ status: "healthy", server: "npm-fw" }));
+      res.end(
+        JSON.stringify({
+          status: "healthy",
+          server: "npm-fw",
+          minSeverity: proxyConfig?.minSeverity ?? "high",
+        }),
+      );
       return;
     }
 

@@ -1,6 +1,6 @@
 import { startServer } from "./server.ts";
 import type { ProxyConfig } from "./proxy/types.ts";
-import { writeStateSync } from "./daemon-state.ts";
+import { writeStateSync, readUserConfigSync } from "./daemon-state.ts";
 import { initAdvisoryCache } from "./proxy/advisories.service.ts";
 
 const readPort = (): number => {
@@ -14,12 +14,11 @@ const readPort = (): number => {
 
 export const runDaemon = (): void => {
   const port = readPort();
+  const userConfig = readUserConfigSync();
 
   const proxyConfig: ProxyConfig = {
     upstream: { registry: "https://registry.npmjs.org" },
-    blocklist: [],
-    metadataFilter: {},
-    advisories: { enabled: true, minSeverity: "high" },
+    minSeverity: userConfig.minSeverity,
   };
 
   writeStateSync({ pid: process.pid, port });

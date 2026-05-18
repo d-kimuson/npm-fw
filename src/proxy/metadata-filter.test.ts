@@ -19,13 +19,17 @@ const sampleMetadata: NpmPackageMetadata = {
 
 describe("applyMetadataFilter", () => {
   it("returns unchanged metadata when filter is empty", () => {
-    const result = applyMetadataFilter(sampleMetadata, {});
+    const result = applyMetadataFilter(sampleMetadata, {
+      hideVersions: [],
+      overrideLatest: undefined,
+    });
     expect(result).toEqual(sampleMetadata);
   });
 
   it("hides specified versions", () => {
     const result = applyMetadataFilter(sampleMetadata, {
       hideVersions: ["3.0.0", "4.0.0-beta"],
+      overrideLatest: undefined,
     });
     expect(result.versions).toEqual({
       "1.0.0": {},
@@ -38,6 +42,7 @@ describe("applyMetadataFilter", () => {
 
   it("overrides latest dist-tag when version exists", () => {
     const result = applyMetadataFilter(sampleMetadata, {
+      hideVersions: [],
       overrideLatest: "2.0.0",
     });
     expect(result["dist-tags"]["latest"]).toBe("2.0.0");
@@ -46,6 +51,7 @@ describe("applyMetadataFilter", () => {
 
   it("does not override latest when version does not exist", () => {
     const result = applyMetadataFilter(sampleMetadata, {
+      hideVersions: [],
       overrideLatest: "99.99.99",
     });
     expect(result["dist-tags"]["latest"]).toBe("3.0.0");

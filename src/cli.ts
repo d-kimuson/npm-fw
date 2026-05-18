@@ -3,7 +3,14 @@ import { Command } from "commander";
 import { spawn } from "node:child_process";
 import getPort from "get-port";
 import { runDaemon } from "./daemon.ts";
-import { readState, isAlive, writeState, removeState } from "./daemon-state.ts";
+import {
+  readState,
+  isAlive,
+  writeState,
+  removeState,
+  readUserConfig,
+  writeUserConfig,
+} from "./daemon-state.ts";
 import pkg from "../package.json" with { type: "json" };
 import { readFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -270,6 +277,22 @@ program
     }
 
     if (state && isAlive(state.pid)) {
+      // 稼働中デーモンの設定を取得
+      try {
+        const infoRes = await fetch(`http://localhost:${state.port}/info`);
+        if (infoRes.ok) {
+          const info: unknown = await infoRes.json();
+          if (typeof info === "object" && info !== null && "minSeverity" in info) {
+            const severity = (info as Record<string, unknown>)["minSeverity"];
+            if (typeof severity === "string") {
+              console.log(`   minSeverity: ${severity}`);
+            }
+          }
+        }
+      } catch {
+        // info 取得失敗は無視
+      }
+
       const expectedRegistry = `http://localhost:${state.port}/`;
       const expected = normalizeUrl(expectedRegistry);
 
@@ -371,6 +394,64 @@ program
     }
   });
 
+// config list
+program
+  .command("config")
+  .description("Manage npm-fw user configuration")
+  .addCommand(
+    new Command("list").description("Show current user configuration").action(async () => {
+      const config = await readUserConfig();
+      console.log(
+        `minSeverity: ${config.minSeverity} (available: low | moderate | high | critical)`,
+      );
+    }),
+  )
+  .addCommand(
+    new Command("set")
+      .description("Set a configuration value and restart the daemon")
+      .argument("<key>", "Configuration key (minSeverity)")
+      .argument("<value>", "Configuration value")
+      .action(async (key: string, value: string) => {
+        if (key !== "minSeverity") {
+          console.error(`Unknown config key: ${key}`);
+          console.error("Supported keys: minSeverity (low | moderate | high | critical)");
+          process.exit(1);
+        }
+
+        const VALID_SEVERITIES = ["low", "moderate", "high", "critical"] as const;
+        type Severity = (typeof VALID_SEVERITIES)[number];
+        const isValid = (v: string): v is Severity =>
+          (VALID_SEVERITIES as readonly string[]).includes(v);
+
+        if (!isValid(value)) {
+          console.error(`Invalid minSeverity: ${value}`);
+          console.error(`Supported values: ${VALID_SEVERITIES.join(" | ")}`);
+          process.exit(1);
+        }
+
+        await writeUserConfig({ minSeverity: value });
+
+        // デーモン再起動
+        const state = await readState();
+        const wasRunning = state !== null && isAlive(state.pid);
+        if (wasRunning) {
+          await stopDaemon();
+          try {
+            const port = await ensureDaemon();
+            console.log(`Daemon restarted on http://localhost:${port}`);
+          } catch (err) {
+            console.error("Failed to restart daemon:", err);
+            process.exit(1);
+          }
+        }
+
+        const updated = await readUserConfig();
+        console.log(
+          `minSeverity: ${updated.minSeverity} (available: low | moderate | high | critical)`,
+        );
+      }),
+  );
+
 // Default: proxy a command
 program.arguments("[command...]").action(async (args: string[]) => {
   await runCommand(args);
@@ -388,6 +469,8 @@ Examples:
   $ npm-fw doctor
   $ npm-fw daemon-stop
   $ npm-fw daemon-reload
+  $ npm-fw config list
+  $ npm-fw config set minSeverity moderate
 `,
 );
 

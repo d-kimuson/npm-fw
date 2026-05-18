@@ -15,8 +15,8 @@ type CreateProxyHandlerOptions = {
 /**
  * 上流レジストリにリクエストを転送するプロキシハンドラを生成する。
  *
- * - tarball リクエストはブロックリストと照合し、NG なら 403
- * - metadata リクエストはいったん上流から取得し、フィルターを適用してから返す
+ * - tarball リクエストは security advisories と照合し、minSeverity 以上の advisory があれば 403
+ * - metadata リクエストはいったん上流から取得し、advisory ベースのフィルターを適用してから返す
  * - その他のリクエストはそのまま上流に転送
  */
 export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
@@ -33,34 +33,16 @@ export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
     const parsed = parsePath(pathname);
 
     // advisories チェック（tarball 取得前）
-    if (config.advisories?.enabled === true && parsed.type === "tarball") {
+    if (parsed.type === "tarball") {
       const advisories = await checkAdvisory({
         registryUrl: config.upstream.registry,
         pkg: parsed.name,
         version: parsed.version,
         fetch: doFetch,
       });
-      const minSeverity = config.advisories.minSeverity ?? "high";
-      const blocked = advisories.some((a) => meetsMinSeverity(a.severity, minSeverity));
+      const blocked = advisories.some((a) => meetsMinSeverity(a.severity, config.minSeverity));
       if (blocked) {
         return blockedResponse(`${parsed.name}@${parsed.version} (vulnerable)`);
-      }
-    }
-
-    // ブロックリストチェック
-    if (parsed.type !== "other") {
-      for (const rule of config.blocklist) {
-        if (rule.type === "package" && rule.name === parsed.name) {
-          return blockedResponse(parsed.name);
-        }
-        if (
-          rule.type === "version" &&
-          rule.name === parsed.name &&
-          parsed.type === "tarball" &&
-          rule.version === parsed.version
-        ) {
-          return blockedResponse(`${parsed.name}@${parsed.version}`);
-        }
       }
     }
 
@@ -87,30 +69,17 @@ export const createProxyHandler = (options: CreateProxyHandlerOptions) => {
           const json: unknown = await cloned.json();
           if (isNpmPackageMetadata(json)) {
             // advisories ベースのフィルターを計算
-            let computedFilter = config.metadataFilter;
-            if (config.advisories?.enabled === true) {
-              const versionKeys = Object.keys(json.versions);
-              const bulkResult = await checkAdvisoriesBulk(
-                config.upstream.registry,
-                { [json.name]: versionKeys },
-                doFetch,
-              );
-              const advisories = bulkResult[json.name] ?? [];
-              if (advisories.length > 0) {
-                const advisoryFilter = computeAdvisoryFilter(
-                  json,
-                  advisories,
-                  config.advisories.minSeverity ?? "high",
-                );
-                // 既存の filter 設定とマージ
-                const existingHidden = config.metadataFilter.hideVersions ?? [];
-                computedFilter = {
-                  hideVersions: [...existingHidden, ...advisoryFilter.hideVersions],
-                  overrideLatest:
-                    advisoryFilter.overrideLatest ?? config.metadataFilter.overrideLatest,
-                };
-              }
-            }
+            const versionKeys = Object.keys(json.versions);
+            const bulkResult = await checkAdvisoriesBulk(
+              config.upstream.registry,
+              { [json.name]: versionKeys },
+              doFetch,
+            );
+            const advisories = bulkResult[json.name] ?? [];
+            const computedFilter =
+              advisories.length > 0
+                ? computeAdvisoryFilter(json, advisories, config.minSeverity)
+                : { hideVersions: [], overrideLatest: undefined };
 
             const filtered = applyMetadataFilter(json, computedFilter);
             return jsonResponse(filtered);

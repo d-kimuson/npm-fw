@@ -14,7 +14,7 @@ export const applyMetadataFilter = (
   let result = metadata;
 
   // バージョンを隠す
-  if (filter.hideVersions && filter.hideVersions.length > 0) {
+  if (filter.hideVersions.length > 0) {
     const versions = { ...result.versions };
     for (const v of filter.hideVersions) {
       delete versions[v];
