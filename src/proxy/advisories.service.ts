@@ -1,6 +1,7 @@
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import semver from "semver";
 import type { Advisory, AdvisoriesResponse, AdvisorySeverity } from "./types.ts";
 
 type FetchFn = typeof globalThis.fetch;
@@ -52,7 +53,9 @@ export const checkAdvisory = async (options: CheckOptions): Promise<readonly Adv
     return [];
   }
 
-  const advisories = extractAdvisories(json, pkg);
+  const advisories = extractAdvisories(json, pkg).filter((a) =>
+    semverSatisfies(version, a.vulnerable_versions),
+  );
   setCached(cacheKey, advisories);
   return advisories;
 };
@@ -143,17 +146,31 @@ const extractAdvisories = (json: unknown, pkg: string): readonly Advisory[] => {
   return advisories.filter(isAdvisory);
 };
 
-/** レスポンスをキャッシュに保存 */
+/**
+ * レスポンスをキャッシュに保存。
+ * 各バージョンに対して vulnerable_versions range に該当する advisory だけを保存する。
+ * 安全バージョンは空配列として保存する。
+ */
 const cacheAdvisoriesResponse = (json: unknown, uncached: Record<string, string[]>): void => {
   if (typeof json !== "object" || json === null) return;
   // oxlint-disable-next-line no-unsafe-type-assertion
   const obj = json as Record<string, unknown>;
   for (const [pkg, versions] of Object.entries(uncached)) {
     const advisories = obj[pkg];
-    const filtered = Array.isArray(advisories) ? advisories.filter(isAdvisory) : [];
+    const all = Array.isArray(advisories) ? advisories.filter(isAdvisory) : [];
     for (const v of versions) {
-      setCached(`${pkg}@${v}`, filtered);
+      const matched = all.filter((a) => semverSatisfies(v, a.vulnerable_versions));
+      setCached(`${pkg}@${v}`, matched);
     }
+  }
+};
+
+/** semver satisfies の安全ラッパー */
+const semverSatisfies = (version: string, range: string): boolean => {
+  try {
+    return semver.satisfies(version, range);
+  } catch {
+    return false;
   }
 };
 

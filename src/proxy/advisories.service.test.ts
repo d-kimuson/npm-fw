@@ -16,6 +16,57 @@ describe("meetsMinSeverity", () => {
 });
 
 describe("checkAdvisory", () => {
+  it("only returns advisories whose vulnerable_versions range matches the requested version", async () => {
+    const advisory = {
+      id: 1,
+      title: "qs vuln (only <6.14.0)",
+      severity: "high" as const,
+      vulnerable_versions: "<6.14.0",
+      cwe: ["CWE-1"],
+      cvss: { score: 7.5, vectorString: null },
+    };
+
+    // 呼ばれるたびに新しい Response を返す（body 消費回避）
+    const mockFetch = vi.fn<typeof globalThis.fetch>().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ qs: [advisory] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+
+    clearAdvisoryCache();
+
+    // qs@6.14.0: <6.14.0 に該当しない → 空配列
+    const result614 = await checkAdvisory({
+      registryUrl: "https://registry.npmjs.org",
+      pkg: "qs",
+      version: "6.14.0",
+      fetch: mockFetch,
+    });
+    expect(result614).toHaveLength(0);
+
+    // qs@6.15.2: <6.14.0 に該当しない → 空配列（キャッシュヒット）
+    const result6152 = await checkAdvisory({
+      registryUrl: "https://registry.npmjs.org",
+      pkg: "qs",
+      version: "6.15.2",
+      fetch: mockFetch,
+    });
+    expect(result6152).toHaveLength(0);
+
+    // qs@6.13.0: <6.14.0 に該当 → advisory が返る
+    const result613 = await checkAdvisory({
+      registryUrl: "https://registry.npmjs.org",
+      pkg: "qs",
+      version: "6.13.0",
+      fetch: mockFetch,
+    });
+    expect(result613).toHaveLength(1);
+    expect(result613[0]?.severity).toBe("high");
+  });
+
   it("returns advisories for a vulnerable version", async () => {
     const mockFetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       new Response(

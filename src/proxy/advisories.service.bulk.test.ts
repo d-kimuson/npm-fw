@@ -240,4 +240,59 @@ describe("checkAdvisoriesBulk", () => {
 
     vi.useRealTimers();
   });
+
+  it("filters advisories by vulnerable_versions range per version", async () => {
+    clearAdvisoryCache();
+    const advisory = {
+      id: 1,
+      title: "qs vuln (only <6.14.0)",
+      severity: "high" as const,
+      vulnerable_versions: "<6.14.0",
+      cwe: [],
+      cvss: { score: 7.5, vectorString: null },
+    };
+
+    const mockFetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ qs: [advisory] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const result = await checkAdvisoriesBulk(
+      registryUrl,
+      { qs: ["6.13.0", "6.14.0", "6.15.2"] },
+      mockFetch,
+    );
+
+    // 6.13.0: <6.14.0 に該当 → advisory 1件
+    expect(result["qs"]?.filter((a) => a.id === advisory.id)).toHaveLength(1);
+    // 6.14.0: 該当なし → empty
+    // 6.15.2: 該当なし → empty
+    // buildResultFromCache は全バージョンの結果を flat して返すので 全体は 1件
+    expect(result["qs"]).toHaveLength(1);
+  });
+
+  it("returns empty for all versions when advisory does not match any version", async () => {
+    clearAdvisoryCache();
+    const advisory = {
+      id: 1,
+      title: "qs vuln (only <6.14.0)",
+      severity: "high" as const,
+      vulnerable_versions: "<6.14.0",
+      cwe: [],
+      cvss: { score: 7.5, vectorString: null },
+    };
+
+    const mockFetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ qs: [advisory] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const result = await checkAdvisoriesBulk(registryUrl, { qs: ["6.15.0", "6.15.2"] }, mockFetch);
+
+    expect(result["qs"]).toHaveLength(0);
+  });
 });
